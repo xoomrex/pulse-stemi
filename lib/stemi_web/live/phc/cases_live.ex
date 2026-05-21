@@ -205,10 +205,10 @@ defmodule StemiWeb.Phc.CasesLive do
 
     <!-- Sign Out -->
     <div style="margin-top: 24px;">
-      <form action="/logout" method="post">
-        <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
-        <button type="submit" class="btn btn--ghost btn--full" id="btn-logout">Sign Out</button>
-      </form>
+      
+        
+        <a href="/logout" class="btn btn--ghost btn--full" id="btn-logout">Sign Out</a>
+      
     </div>
 
     <!-- New Case Modal -->

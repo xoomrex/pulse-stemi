@@ -29,6 +29,7 @@ defmodule StemiWeb.Router do
     # Session management (regular controller for cookie handling)
     post "/session", SessionController, :create
     post "/logout", SessionController, :delete
+    get "/logout", SessionController, :delete
 
     # Uploaded file serving
     get "/uploads/:filename", UploadController, :show
