@@ -1,0 +1,61 @@
+<div class="app-shell">
+  <header class="app-header">
+    <a href="/" class="app-header__logo">
+      <div class="app-header__logo-icon">
+        <div class="pulse-ring"></div>
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="18" cy="18" r="17" stroke="#ef4444" stroke-width="1.5" opacity="0.2"/>
+          <path class="ecg-line" d="M4 18 L10 18 L12 12 L15 26 L18 8 L21 24 L23 14 L26 18 L32 18" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </div>
+      Pulse
+    </a>
+    <span class="app-header__title">{assigns[:page_title] || ""}</span>
+  </header>
+
+  <main class="app-main">
+    <.flash_group flash={@flash} />
+    {@inner_content}
+  </main>
+
+  <nav class="bottom-nav" id="bottom-nav">
+    <a href="/admin/users" class={"bottom-nav__item #{if assigns[:active_tab] == :users, do: "bottom-nav__item--active"}"}>
+      <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      Users
+    </a>
+    <a href="/admin/cases" class={"bottom-nav__item #{if assigns[:active_tab] == :cases, do: "bottom-nav__item--active"}"}>
+      <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+      </svg>
+      Cases
+    </a>
+    <a href="/dashboard" class={"bottom-nav__item #{if assigns[:active_tab] == :dashboard, do: "bottom-nav__item--active"}"}>
+      <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+      </svg>
+      Dashboard
+    </a>
+    <a
+      :if={assigns[:current_user] && assigns.current_user.role == "admin"}
+      href="/admin/simulator"
+      class={"bottom-nav__item #{if assigns[:active_tab] == :simulator, do: "bottom-nav__item--active"}"}
+    >
+      <svg class="bottom-nav__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="5" y="2" width="14" height="20" rx="3"/>
+        <line x1="12" y1="18" x2="12" y2="18"/>
+      </svg>
+      Simulator
+    </a>
+  </nav>
+</div>
+
+<!-- Alert Sound Player (invisible) -->
+<audio id="alert-sound" preload="auto">
+  <source src="/sounds/alert.mp3" type="audio/mpeg" />
+</audio>

@@ -1,0 +1,11 @@
+/_build
+/cover
+/deps
+/doc
+/.fetch
+esbuild
+*.ez
+/tmp
+.env
+stemi-keys.txt
+priv/static/assets/
