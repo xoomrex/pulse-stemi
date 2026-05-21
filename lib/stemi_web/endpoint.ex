@@ -8,7 +8,8 @@ defmodule StemiWeb.Endpoint do
     store: :cookie,
     key: "_stemi_key",
     signing_salt: "6b3T46DT",
-    same_site: "Lax"
+    same_site: "Lax",
+    max_age: 86_400
   ]
 
   socket "/live", Phoenix.LiveView.Socket,

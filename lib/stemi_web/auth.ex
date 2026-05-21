@@ -62,25 +62,10 @@ defmodule StemiWeb.Auth do
           user = Accounts.get_user!(user_id)
           device = session["device_type"] || "desktop"
 
-          cond do
-            user.role == "admin" ->
-              {:cont,
-               socket
-               |> Phoenix.Component.assign(:current_user, user)
-               |> Phoenix.Component.assign(:device_type, device)}
-
-            device == "mobile" ->
-              {:cont,
-               socket
-               |> Phoenix.Component.assign(:current_user, user)
-               |> Phoenix.Component.assign(:device_type, device)}
-
-            true ->
-              {:halt,
-               socket
-               |> Phoenix.LiveView.put_flash(:info, "Pulse runs on phones. Install it on your device to continue.")
-               |> Phoenix.LiveView.redirect(to: "/install")}
-          end
+          {:cont,
+           socket
+           |> Phoenix.Component.assign(:current_user, user)
+           |> Phoenix.Component.assign(:device_type, device)}
         rescue
           Ecto.NoResultsError ->
             {:halt, Phoenix.LiveView.redirect(socket, to: "/login")}

@@ -34,7 +34,8 @@ defmodule StemiWeb.SessionController do
 
     conn
     |> clear_session()
-    |> put_flash(:info, "Logged out successfully.")
+    |> configure_session(renew: true)
+    |> put_resp_header("cache-control", "no-cache, no-store, must-revalidate")
     |> redirect(to: "/login")
   end
 

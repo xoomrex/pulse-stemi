@@ -20,6 +20,8 @@ defmodule StemiWeb.Phc.CasesLive do
       |> assign(:cases, cases)
       |> assign(:show_form, false)
       |> assign(:changeset, nil)
+      |> assign(:selected_case, nil)
+      |> assign(:preview_image, nil)
       |> assign(:stats, Cases.case_stats())
       |> assign(:show_map, false)
       |> allow_upload(:ecg_photo, accept: :any, max_entries: 1, max_file_size: 8_000_000)
@@ -44,6 +46,19 @@ defmodule StemiWeb.Phc.CasesLive do
   end
 
   @impl true
+  def handle_info({:comment_added, comment}, socket) do
+    case socket.assigns.selected_case do
+      %{id: id} when id == comment.case_id ->
+        Phoenix.LiveView.send_update(StemiWeb.Components.CaseComments,
+          id: "comments-#{id}",
+          comments_tree: Cases.list_comments_tree(id)
+        )
+      _ -> :ok
+    end
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("new_case", _params, socket) do
     changeset = Cases.change_case(%Case{}, %{})
 
@@ -58,6 +73,30 @@ defmodule StemiWeb.Phc.CasesLive do
   @impl true
   def handle_event("close_form", _params, socket) do
     {:noreply, assign(socket, show_form: false, changeset: nil)}
+  end
+
+  @impl true
+  def handle_event("view_case", %{"id" => id}, socket) do
+    if prev = socket.assigns.selected_case, do: Cases.unsubscribe_comments(prev.id)
+    if connected?(socket), do: Cases.subscribe_comments(id)
+    selected = Cases.get_case!(id)
+    {:noreply, assign(socket, selected_case: selected)}
+  end
+
+  @impl true
+  def handle_event("close_case", _params, socket) do
+    if prev = socket.assigns.selected_case, do: Cases.unsubscribe_comments(prev.id)
+    {:noreply, assign(socket, selected_case: nil)}
+  end
+
+  @impl true
+  def handle_event("preview_image", %{"url" => url}, socket) do
+    {:noreply, assign(socket, preview_image: url)}
+  end
+
+  @impl true
+  def handle_event("close_preview", _params, socket) do
+    {:noreply, assign(socket, preview_image: nil)}
   end
 
   @impl true
@@ -136,6 +175,9 @@ defmodule StemiWeb.Phc.CasesLive do
   defp status_label("dispatched"), do: "EMS Dispatched"
   defp status_label(s), do: s
 
+  defp format_datetime(nil), do: "—"
+  defp format_datetime(dt), do: Calendar.strftime(dt, "%d %b %Y, %H:%M")
+
   defp time_ago(datetime) do
     diff = DateTime.diff(DateTime.utc_now(), datetime, :minute)
 
@@ -172,6 +214,9 @@ defmodule StemiWeb.Phc.CasesLive do
         :for={c <- @cases}
         class="user-card"
         id={"case-#{c.id}"}
+        style="cursor: pointer;"
+        phx-click="view_case"
+        phx-value-id={c.id}
       >
         <div class="user-card__avatar" style={"background: #{status_color(c.status)}"}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -310,6 +355,112 @@ defmodule StemiWeb.Phc.CasesLive do
         </.form>
       </div>
     </div>
+
+    <!-- Case Detail Modal -->
+    <div :if={@selected_case} class="phc-overlay" id="phc-detail-modal">
+      <div class="phc-panel">
+        <div class="phc-panel__handle"></div>
+        <h2 class="phc-panel__title">{Case.display_id(@selected_case)}</h2>
+
+        <div class="phc-field">
+          <span class="phc-label">Patient ID</span>
+          <span class="phc-val">{@selected_case.patient_id || "—"}</span>
+        </div>
+
+        <div class="phc-field">
+          <span class="phc-label">Status</span>
+          <span class="phc-val" style={"color: #{status_color(@selected_case.status)}"}>{status_label(@selected_case.status)}</span>
+        </div>
+
+        <div class="phc-field">
+          <span class="phc-label">Submitted</span>
+          <span class="phc-val" style="font-size: 13px;">{format_datetime(@selected_case.inserted_at)}</span>
+        </div>
+
+        <!-- ECG Image -->
+        <div :if={@selected_case.ecg_photo_url && @selected_case.ecg_photo_url != "no_photo"} class="phc-photo">
+          <span class="phc-label">ECG Photo</span>
+          <img src={@selected_case.ecg_photo_url} alt="ECG" phx-click="preview_image" phx-value-url={@selected_case.ecg_photo_url} style="cursor: pointer;" title="Tap to enlarge" />
+        </div>
+
+        <!-- ID Image -->
+        <div :if={@selected_case.id_photo_url} class="phc-photo">
+          <span class="phc-label">Patient ID Photo</span>
+          <img src={@selected_case.id_photo_url} alt="Patient ID" phx-click="preview_image" phx-value-url={@selected_case.id_photo_url} style="cursor: pointer;" title="Tap to enlarge" />
+        </div>
+
+        <!-- Timeline -->
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border, #333);">
+          <div style="font-size: 13px; color: var(--text-muted); font-weight: 600; margin-bottom: 8px;">Timeline</div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0;"></div>
+            <span style="font-size: 13px; flex: 1;">Submitted</span>
+            <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.inserted_at)}</span>
+          </div>
+          <div :if={@selected_case.er_decided_at} style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+            <div style={"width: 8px; height: 8px; border-radius: 50%; background: #{if @selected_case.er_decision == "approved", do: "#a855f7", else: "#ef4444"}; flex-shrink: 0;"}></div>
+            <span style="font-size: 13px; flex: 1;">ER {if @selected_case.er_decision == "approved", do: "Forwarded to Cardio", else: "Rejected"}</span>
+            <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.er_decided_at)}</span>
+          </div>
+          <div :if={@selected_case.cardiology_decided_at} style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+            <div style={"width: 8px; height: 8px; border-radius: 50%; background: #{if @selected_case.cardiology_decision == "approved", do: "#22c55e", else: "#ef4444"}; flex-shrink: 0;"}></div>
+            <span style="font-size: 13px; flex: 1;">Cardio {if @selected_case.cardiology_decision == "approved", do: "Approved", else: "Rejected"}</span>
+            <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.cardiology_decided_at)}</span>
+          </div>
+          <div :if={@selected_case.eligibility_decided_at} style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0;"></div>
+            <span style="font-size: 13px; flex: 1;">MRN: {@selected_case.mrn_number || "—"}</span>
+            <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.eligibility_decided_at)}</span>
+          </div>
+          <div :if={@selected_case.ems_dispatched_at} style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; flex-shrink: 0;"></div>
+            <span style="font-size: 13px; flex: 1;">EMS Dispatched</span>
+            <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.ems_dispatched_at)}</span>
+          </div>
+          <div :if={@selected_case.cath_lab_confirmed_at} style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #ec4899; flex-shrink: 0;"></div>
+            <span style="font-size: 13px; flex: 1;">Cath Lab Ready</span>
+            <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.cath_lab_confirmed_at)}</span>
+          </div>
+        </div>
+
+        <!-- Comments -->
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border, #333);">
+          <.live_component
+            module={StemiWeb.Components.CaseComments}
+            id={"comments-#{@selected_case.id}"}
+            case_id={@selected_case.id}
+            current_user={@current_user}
+          />
+        </div>
+
+        <div style="margin-top: 16px;">
+          <button type="button" class="btn btn--ghost btn--full" phx-click="close_case">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fullscreen Image Preview -->
+    <div :if={@preview_image} class="img-lightbox" phx-click="close_preview" id="phc-img-lightbox">
+      <button class="img-lightbox__close" phx-click="close_preview">✕</button>
+      <img src={@preview_image} alt="Preview" />
+    </div>
+
+    <style>
+      .phc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: flex-end; justify-content: center; }
+      .phc-panel { background: var(--bg-secondary, #1a1a2e); border-radius: 16px 16px 0 0; padding: 20px 20px 32px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; position: relative; z-index: 1001; }
+      .phc-panel__handle { width: 40px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; margin: 0 auto 16px; }
+      .phc-panel__title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+      .phc-field { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border, #333); }
+      .phc-label { font-size: 13px; color: var(--text-muted, #888); font-weight: 500; }
+      .phc-val { font-size: 15px; font-weight: 600; }
+      .phc-photo { padding: 10px 0; border-bottom: 1px solid var(--border, #333); }
+      .phc-photo .phc-label { display: block; margin-bottom: 10px; }
+      .phc-photo img { width: 100%; border-radius: 8px; max-height: 250px; object-fit: contain; background: var(--bg-primary, #0f0f23); }
+      .img-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+      .img-lightbox img { max-width: 95vw; max-height: 90vh; object-fit: contain; border-radius: 8px; }
+      .img-lightbox__close { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    </style>
 
     <style>
       .photo-upload-area {

@@ -41,13 +41,29 @@ defmodule StemiWeb.Elig.CasesLive do
   end
 
   @impl true
+  def handle_info({:comment_added, comment}, socket) do
+    case socket.assigns.selected_case do
+      %{id: id} when id == comment.case_id ->
+        Phoenix.LiveView.send_update(StemiWeb.Components.CaseComments,
+          id: "comments-#{id}",
+          comments_tree: Cases.list_comments_tree(id)
+        )
+      _ -> :ok
+    end
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("view_case", %{"id" => id}, socket) do
+    if prev = socket.assigns.selected_case, do: Cases.unsubscribe_comments(prev.id)
+    if connected?(socket), do: Cases.subscribe_comments(id)
     selected = Cases.get_case!(id)
     {:noreply, assign(socket, selected_case: selected, mrn_value: selected.mrn_number || "")}
   end
 
   @impl true
   def handle_event("close_case", _params, socket) do
+    if prev = socket.assigns.selected_case, do: Cases.unsubscribe_comments(prev.id)
     {:noreply, assign(socket, selected_case: nil, mrn_value: "")}
   end
 
@@ -317,6 +333,16 @@ defmodule StemiWeb.Elig.CasesLive do
             <span style="font-size: 13px; flex: 1;">Cath Lab Ready</span>
             <span style="font-size: 11px; color: var(--text-muted);">{format_datetime(@selected_case.cath_lab_confirmed_at)}</span>
           </div>
+        </div>
+
+        <!-- Comments -->
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border, #333);">
+          <.live_component
+            module={StemiWeb.Components.CaseComments}
+            id={"comments-#{@selected_case.id}"}
+            case_id={@selected_case.id}
+            current_user={@current_user}
+          />
         </div>
 
         <!-- MRN Input -->
