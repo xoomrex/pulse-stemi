@@ -61,18 +61,6 @@ defmodule StemiWeb.Router do
       on_mount: {StemiWeb.Auth, :admin_only} do
       live "/users", UsersLive, :index
       live "/cases", CasesLive, :index
-      live "/simulator", SimulatorLive, :index
-    end
-  end
-
-  # Simulator iframes — server-side admin auth check + URL-param impersonation.
-  # Non-admins hitting these routes are rejected in `Auth.on_mount(:simulated, ...)`.
-  scope "/simulate", StemiWeb do
-    pipe_through [:browser]
-
-    live_session :simulated,
-      on_mount: {StemiWeb.Auth, :simulated} do
-      live "/:sim_user_id", SimulateLive, :index
     end
   end
 end
