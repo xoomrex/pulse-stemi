@@ -318,16 +318,22 @@ Hooks.EmsTracker = {
 
 // ============================================
 // EMS Map Viewer Hook (Leaflet.js)
-// Shows ambulance position on a map
+// Shows PHC origin, KFMC destination, and live ambulance
 // ============================================
+
+// KFMC (King Fahad Medical City) — destination cardiac center
+const KFMC_LAT = 24.687313;
+const KFMC_LNG = 46.702197;
+
 Hooks.EmsMap = {
   mounted() {
     this.map = null;
-    this.marker = null;
+    this.ambulanceMarker = null;
     this.loaded = false;
+    this._pendingInit = null;
 
-    this.handleEvent("show_ems_map", ({lat, lng, label}) => {
-      // Dynamically load Leaflet CSS + JS if not loaded
+    this.handleEvent("show_ems_map", (payload) => {
+      this._pendingInit = payload;
       if (!this.loaded) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -338,17 +344,17 @@ Hooks.EmsMap = {
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
         script.onload = () => {
           this.loaded = true;
-          this._initMap(lat, lng, label);
+          if (this._pendingInit) this._initMap(this._pendingInit);
         };
         document.head.appendChild(script);
       } else {
-        this._initMap(lat, lng, label);
+        this._initMap(payload);
       }
     });
 
     this.handleEvent("update_ems_position", ({lat, lng}) => {
-      if (this.marker && this.map) {
-        this.marker.setLatLng([lat, lng]);
+      if (this.ambulanceMarker && this.map) {
+        this.ambulanceMarker.setLatLng([lat, lng]);
         this.map.panTo([lat, lng]);
       }
     });
@@ -357,35 +363,89 @@ Hooks.EmsMap = {
       if (this.map) {
         this.map.remove();
         this.map = null;
-        this.marker = null;
+        this.ambulanceMarker = null;
       }
     });
   },
-  _initMap(lat, lng, label) {
+
+  _initMap({lat, lng, label, phc_lat, phc_lng, phc_name}) {
     const container = document.getElementById('ems-map-container');
     if (!container) return;
-    container.style.height = '300px';
+    container.style.height = '320px';
     container.innerHTML = '';
 
-    this.map = L.map(container).setView([lat, lng], 14);
+    // If EMS has no GPS yet, center on PHC or KFMC
+    const centerLat = lat || phc_lat || KFMC_LAT;
+    const centerLng = lng || phc_lng || KFMC_LNG;
+
+    // Zoom to fit both PHC and KFMC if we have PHC coords
+    this.map = L.map(container);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
     }).addTo(this.map);
 
-    // Ambulance icon
-    const ambulanceIcon = L.divIcon({
-      html: '<div style="font-size:28px;text-align:center;">🚑</div>',
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
+    const points = [[KFMC_LAT, KFMC_LNG]];
+
+    // PHC marker (green pin)
+    if (phc_lat && phc_lng) {
+      const phcIcon = L.divIcon({
+        html: '<div style="font-size:26px;text-align:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">🏥</div>',
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
+        className: ''
+      });
+      L.marker([phc_lat, phc_lng], {icon: phcIcon})
+        .addTo(this.map)
+        .bindPopup(`<b>Origin:</b><br>${phc_name || 'PHC Facility'}`)
+        .openPopup();
+      points.push([phc_lat, phc_lng]);
+    }
+
+    // KFMC destination marker (red hospital)
+    const kfmcIcon = L.divIcon({
+      html: '<div style="font-size:26px;text-align:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">❤️</div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
       className: ''
     });
+    L.marker([KFMC_LAT, KFMC_LNG], {icon: kfmcIcon})
+      .addTo(this.map)
+      .bindPopup('<b>Destination:</b><br>King Fahad Medical City<br>Cardiac Cath Lab');
 
-    this.marker = L.marker([lat, lng], {icon: ambulanceIcon}).addTo(this.map);
-    this.marker.bindPopup(label || 'EMS Ambulance').openPopup();
+    // Draw dashed route line between PHC and KFMC
+    if (phc_lat && phc_lng) {
+      L.polyline([[phc_lat, phc_lng], [KFMC_LAT, KFMC_LNG]], {
+        color: '#3b82f6',
+        weight: 2,
+        dashArray: '6 6',
+        opacity: 0.7
+      }).addTo(this.map);
+    }
 
-    // Fix map rendering
+    // Live EMS ambulance marker
+    if (lat && lng) {
+      const ambulanceIcon = L.divIcon({
+        html: '<div style="font-size:28px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">🚑</div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        className: ''
+      });
+      this.ambulanceMarker = L.marker([lat, lng], {icon: ambulanceIcon})
+        .addTo(this.map)
+        .bindPopup(label || 'EMS Ambulance');
+      points.push([lat, lng]);
+    }
+
+    // Fit map to show all markers
+    if (points.length > 1) {
+      this.map.fitBounds(L.latLngBounds(points), {padding: [40, 40]});
+    } else {
+      this.map.setView([centerLat, centerLng], 13);
+    }
+
     setTimeout(() => this.map.invalidateSize(), 200);
   },
+
   destroyed() {
     if (this.map) {
       this.map.remove();

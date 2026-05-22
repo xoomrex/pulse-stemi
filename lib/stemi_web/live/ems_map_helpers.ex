@@ -29,20 +29,20 @@ defmodule StemiWeb.EmsMapHelpers do
            |> Phoenix.Component.assign(:show_map, false)
            |> Phoenix.LiveView.push_event("hide_ems_map", %{})}
         else
-          if c && c.ems_lat && c.ems_lng do
-            label = "EMS — #{Stemi.Cases.Case.display_id(c)}"
+          phc = c && c.phc_hospital
+          payload = %{
+            lat: c && c.ems_lat,
+            lng: c && c.ems_lng,
+            label: c && "EMS — #{Stemi.Cases.Case.display_id(c)}",
+            phc_lat: phc && phc.lat,
+            phc_lng: phc && phc.lng,
+            phc_name: phc && phc.name
+          }
 
-            {:noreply,
-             socket
-             |> Phoenix.Component.assign(:show_map, true)
-             |> Phoenix.LiveView.push_event("show_ems_map", %{
-               lat: c.ems_lat,
-               lng: c.ems_lng,
-               label: label
-             })}
-          else
-            {:noreply, Phoenix.LiveView.put_flash(socket, :info, "No EMS location data yet.")}
-          end
+          {:noreply,
+           socket
+           |> Phoenix.Component.assign(:show_map, true)
+           |> Phoenix.LiveView.push_event("show_ems_map", payload)}
         end
       end
     end

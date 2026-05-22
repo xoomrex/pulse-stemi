@@ -99,11 +99,22 @@ defmodule StemiWeb.Ems.DispatchLive do
     if socket.assigns.show_map do
       {:noreply, socket |> assign(:show_map, false) |> push_event("hide_ems_map", %{})}
     else
+      label = "EMS — #{Stemi.Cases.Case.display_id(c)}"
+      phc = c && c.phc_hospital
+      payload = %{
+        lat: c && c.ems_lat,
+        lng: c && c.ems_lng,
+        label: label,
+        phc_lat: phc && phc.lat,
+        phc_lng: phc && phc.lng,
+        phc_name: phc && phc.name
+      }
+
       if c && c.ems_lat && c.ems_lng do
-        label = "EMS — #{Stemi.Cases.Case.display_id(c)}"
-        {:noreply, socket |> assign(:show_map, true) |> push_event("show_ems_map", %{lat: c.ems_lat, lng: c.ems_lng, label: label})}
+        {:noreply, socket |> assign(:show_map, true) |> push_event("show_ems_map", payload)}
       else
-        {:noreply, put_flash(socket, :info, "No GPS location yet. Location will appear once your phone shares GPS.")}
+        # Open map anyway showing PHC → KFMC route even if no live GPS yet
+        {:noreply, socket |> assign(:show_map, true) |> push_event("show_ems_map", payload)}
       end
     end
   end
