@@ -10,7 +10,7 @@ defmodule StemiWeb.CathLab.PrepareLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Cases.subscribe()
 
-    cases = Cases.list_cath_lab_cases()
+    cases = Cases.list_cath_lab_cases_for_list()
 
     socket =
       socket
@@ -26,8 +26,8 @@ defmodule StemiWeb.CathLab.PrepareLive do
   end
 
   @impl true
-  def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated, :case_eligibility_updated, :case_ems_dispatched, :case_cath_lab_updated] do
-    cases = Cases.list_cath_lab_cases()
+  def handle_info({event, _payload}, socket) when event in [:case_cardiology_updated, :case_ems_dispatched, :case_cath_lab_updated] do
+    cases = Cases.list_cath_lab_cases_for_list()
 
     socket =
       socket
@@ -87,7 +87,7 @@ defmodule StemiWeb.CathLab.PrepareLive do
 
     case result do
       {:ok, _} ->
-        cases = Cases.list_cath_lab_cases()
+        cases = Cases.list_cath_lab_cases_for_list()
         socket =
           socket
           |> put_flash(:info, "Cath Lab: Preparing!")
@@ -113,7 +113,7 @@ defmodule StemiWeb.CathLab.PrepareLive do
 
     case result do
       {:ok, _} ->
-        cases = Cases.list_cath_lab_cases()
+        cases = Cases.list_cath_lab_cases_for_list()
         socket =
           socket
           |> put_flash(:info, "Cath Lab: Ready for patient!")

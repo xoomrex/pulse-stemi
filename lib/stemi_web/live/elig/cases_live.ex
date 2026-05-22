@@ -10,7 +10,7 @@ defmodule StemiWeb.Elig.CasesLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Cases.subscribe()
 
-    cases = Cases.list_approved_cases()
+    cases = Cases.list_approved_cases_for_list()
 
     socket =
       socket
@@ -28,8 +28,8 @@ defmodule StemiWeb.Elig.CasesLive do
 
   # Real-time update from PubSub
   @impl true
-  def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated, :case_eligibility_updated, :case_ems_dispatched] do
-    cases = Cases.list_approved_cases()
+  def handle_info({event, _payload}, socket) when event in [:case_cardiology_updated, :case_eligibility_updated] do
+    cases = Cases.list_approved_cases_for_list()
 
     socket =
       socket
@@ -100,7 +100,7 @@ defmodule StemiWeb.Elig.CasesLive do
 
       case result do
         {:ok, _} ->
-          cases = Cases.list_approved_cases()
+          cases = Cases.list_approved_cases_for_list()
           msg = if had_mrn, do: "MRN updated!", else: "MRN assigned!"
 
           socket =

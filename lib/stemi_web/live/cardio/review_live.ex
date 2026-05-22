@@ -10,7 +10,7 @@ defmodule StemiWeb.Cardio.ReviewLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Cases.subscribe()
 
-    cases = Cases.list_cardio_cases()
+    cases = Cases.list_cardio_cases_for_list()
 
     socket =
       socket
@@ -25,10 +25,10 @@ defmodule StemiWeb.Cardio.ReviewLive do
     {:ok, socket}
   end
 
-  # Real-time update from PubSub
+  # Real-time update — only react to events that change the cardio list
   @impl true
-  def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated, :case_eligibility_updated, :case_ems_dispatched, :case_comment_added] do
-    cases = Cases.list_cardio_cases()
+  def handle_info({event, _payload}, socket) when event in [:case_er_updated, :case_cardiology_updated] do
+    cases = Cases.list_cardio_cases_for_list()
 
     socket =
       socket
@@ -93,7 +93,7 @@ defmodule StemiWeb.Cardio.ReviewLive do
       status: "approved"
     })
 
-    cases = Cases.list_cardio_cases()
+    cases = Cases.list_cardio_cases_for_list()
 
     socket =
       socket
@@ -116,7 +116,7 @@ defmodule StemiWeb.Cardio.ReviewLive do
       status: "rejected"
     })
 
-    cases = Cases.list_cardio_cases()
+    cases = Cases.list_cardio_cases_for_list()
 
     socket =
       socket

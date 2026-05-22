@@ -32,7 +32,7 @@ defmodule StemiWeb.Phc.CasesLive do
 
   # Real-time update from PubSub
   @impl true
-  def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated, :case_eligibility_updated, :case_ems_dispatched] do
+  def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated] do
     user = socket.assigns.current_user
     cases = Cases.list_cases_for_phc(user.id)
 

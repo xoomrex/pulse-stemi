@@ -10,7 +10,7 @@ defmodule StemiWeb.Er.ReviewLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Cases.subscribe()
 
-    cases = Cases.list_er_cases()
+    cases = Cases.list_er_cases_for_list()
 
     socket =
       socket
@@ -25,10 +25,10 @@ defmodule StemiWeb.Er.ReviewLive do
     {:ok, socket}
   end
 
-  # Real-time update from PubSub
+  # Real-time update from PubSub — only reload for events that change what ER sees
   @impl true
   def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated, :case_eligibility_updated, :case_ems_dispatched] do
-    cases = Cases.list_er_cases()
+    cases = Cases.list_er_cases_for_list()
 
     socket =
       socket

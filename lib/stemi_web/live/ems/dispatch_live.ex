@@ -9,7 +9,7 @@ defmodule StemiWeb.Ems.DispatchLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Cases.subscribe()
 
-    cases = Cases.list_ready_for_dispatch()
+    cases = Cases.list_ready_for_dispatch_for_list()
 
     socket =
       socket
@@ -27,8 +27,8 @@ defmodule StemiWeb.Ems.DispatchLive do
 
   # Real-time update from PubSub
   @impl true
-  def handle_info({event, _payload}, socket) when event in [:case_created, :case_er_updated, :case_cardiology_updated, :case_eligibility_updated, :case_ems_dispatched] do
-    cases = Cases.list_ready_for_dispatch()
+  def handle_info({event, _payload}, socket) when event in [:case_cardiology_updated, :case_ems_dispatched] do
+    cases = Cases.list_ready_for_dispatch_for_list()
 
     socket =
       socket
@@ -130,7 +130,7 @@ defmodule StemiWeb.Ems.DispatchLive do
       status: "dispatched"
     })
 
-    cases = Cases.list_ready_for_dispatch()
+    cases = Cases.list_ready_for_dispatch_for_list()
 
     socket =
       socket

@@ -48,14 +48,24 @@ defmodule Stemi.Cases do
   # --- Stats (used by all role views for dashboard cards) ---
 
   def case_stats do
-    cases = Repo.all(from c in Case, where: c.is_deleted == false)
+    counts =
+      from(c in Case,
+        where: c.is_deleted == false,
+        group_by: c.status,
+        select: {c.status, count(c.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    total = counts |> Map.values() |> Enum.sum()
+
     %{
-      pending: Enum.count(cases, &(&1.status in ["pending_review", "pending_er"])),
-      er_approved: Enum.count(cases, &(&1.status == "er_approved")),
-      approved: Enum.count(cases, &(&1.status == "approved")),
-      dispatched: Enum.count(cases, &(&1.status == "dispatched")),
-      rejected: Enum.count(cases, &(&1.status in ["rejected", "er_rejected"])),
-      total: length(cases)
+      pending: Map.get(counts, "pending_review", 0) + Map.get(counts, "pending_er", 0),
+      er_approved: Map.get(counts, "er_approved", 0),
+      approved: Map.get(counts, "approved", 0),
+      dispatched: Map.get(counts, "dispatched", 0),
+      rejected: Map.get(counts, "rejected", 0) + Map.get(counts, "er_rejected", 0),
+      total: total
     }
   end
 
@@ -110,6 +120,49 @@ defmodule Stemi.Cases do
     |> where([c], c.cardiology_decision == "approved" and c.is_deleted == false)
     |> order_by([c], [asc: fragment("CASE WHEN cath_lab_status = 'pending' THEN 0 WHEN cath_lab_status = 'preparing' THEN 1 ELSE 2 END"), asc: :inserted_at])
     |> preload([:phc_user, :phc_hospital, :er_consultant, :cardiologist, :eligibility, :ems_user])
+    |> Repo.all()
+  end
+
+  # Lightweight variants for list/card rendering — only preload what cards display.
+  # get_case!/1 still loads full preloads for the detail panel.
+
+  def list_er_cases_for_list do
+    Case
+    |> where([c], c.is_deleted == false)
+    |> order_by([c], [asc: fragment("CASE WHEN status = 'pending_er' OR status = 'pending_review' THEN 0 ELSE 1 END"), asc: :inserted_at])
+    |> preload([:phc_user, :phc_hospital])
+    |> Repo.all()
+  end
+
+  def list_cardio_cases_for_list do
+    Case
+    |> where([c], c.er_decision == "approved" and c.is_deleted == false)
+    |> order_by([c], [asc: fragment("CASE WHEN cardiology_decision IS NULL THEN 0 ELSE 1 END"), asc: :inserted_at])
+    |> preload([:phc_user, :phc_hospital])
+    |> Repo.all()
+  end
+
+  def list_approved_cases_for_list do
+    Case
+    |> where([c], c.cardiology_decision == "approved" and c.is_deleted == false)
+    |> order_by([c], [asc: fragment("CASE WHEN mrn_number IS NULL OR mrn_number = '' THEN 0 ELSE 1 END"), asc: :inserted_at])
+    |> preload([:phc_user, :phc_hospital])
+    |> Repo.all()
+  end
+
+  def list_ready_for_dispatch_for_list do
+    Case
+    |> where([c], c.cardiology_decision == "approved" and c.is_deleted == false)
+    |> order_by([c], [asc: fragment("CASE WHEN status = 'dispatched' OR status = 'completed' THEN 1 ELSE 0 END"), asc: :inserted_at])
+    |> preload([:phc_user, :phc_hospital])
+    |> Repo.all()
+  end
+
+  def list_cath_lab_cases_for_list do
+    Case
+    |> where([c], c.cardiology_decision == "approved" and c.is_deleted == false)
+    |> order_by([c], [asc: fragment("CASE WHEN cath_lab_status = 'pending' THEN 0 WHEN cath_lab_status = 'preparing' THEN 1 ELSE 2 END"), asc: :inserted_at])
+    |> preload([:phc_user, :phc_hospital])
     |> Repo.all()
   end
 
