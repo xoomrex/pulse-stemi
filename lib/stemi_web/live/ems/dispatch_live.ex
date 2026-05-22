@@ -73,7 +73,7 @@ defmodule StemiWeb.Ems.DispatchLive do
   @impl true
   def handle_event("close_case", _params, socket) do
     if prev = socket.assigns.selected_case, do: Cases.unsubscribe_comments(prev.id)
-    {:noreply, assign(socket, selected_case: nil)}
+    {:noreply, socket |> assign(:selected_case, nil) |> assign(:show_map, false)}
   end
 
   @impl true
@@ -131,13 +131,27 @@ defmodule StemiWeb.Ems.DispatchLive do
     })
 
     cases = Cases.list_ready_for_dispatch_for_list()
+    # Re-fetch so selected_case reflects status: "dispatched" (required for EmsMap hook to mount)
+    dispatched = Cases.get_case!(id)
+    phc = dispatched.phc_hospital
+
+    map_payload = %{
+      lat: nil,
+      lng: nil,
+      label: "EMS — #{Cases.Case.display_id(dispatched)}",
+      phc_lat: phc && phc.lat,
+      phc_lng: phc && phc.lng,
+      phc_name: phc && phc.name
+    }
 
     socket =
       socket
-      |> put_flash(:info, "EMS dispatched! GPS tracking started.")
+      |> put_flash(:info, "EMS dispatched! Navigating to patient.")
       |> push_event("start_tracking", %{case_id: id})
+      |> push_event("show_ems_map", map_payload)
       |> assign(:cases, cases)
-      |> assign(:selected_case, nil)
+      |> assign(:selected_case, dispatched)
+      |> assign(:show_map, true)
       |> assign(:tracking_case_id, id)
 
     {:noreply, socket}

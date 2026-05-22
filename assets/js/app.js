@@ -329,8 +329,12 @@ Hooks.EmsMap = {
   mounted() {
     this.map = null;
     this.ambulanceMarker = null;
+    this.emsRouteLine = null;
     this.loaded = false;
     this._pendingInit = null;
+    this._phc_lat = null;
+    this._phc_lng = null;
+    this._label = null;
 
     this.handleEvent("show_ems_map", (payload) => {
       this._pendingInit = payload;
@@ -353,9 +357,10 @@ Hooks.EmsMap = {
     });
 
     this.handleEvent("update_ems_position", ({lat, lng}) => {
-      if (this.ambulanceMarker && this.map) {
-        this.ambulanceMarker.setLatLng([lat, lng]);
-        this.map.panTo([lat, lng]);
+      if (!this.map) return;
+      this._placeAmbulance(lat, lng);
+      if (this._phc_lat && this._phc_lng) {
+        this._drawEmsRoute(lat, lng, this._phc_lat, this._phc_lng);
       }
     });
 
@@ -364,6 +369,7 @@ Hooks.EmsMap = {
         this.map.remove();
         this.map = null;
         this.ambulanceMarker = null;
+        this.emsRouteLine = null;
       }
     });
   },
@@ -374,11 +380,14 @@ Hooks.EmsMap = {
     container.style.height = '320px';
     container.innerHTML = '';
 
-    // If EMS has no GPS yet, center on PHC or KFMC
-    const centerLat = lat || phc_lat || KFMC_LAT;
-    const centerLng = lng || phc_lng || KFMC_LNG;
+    // Store for later updates
+    this._phc_lat = phc_lat;
+    this._phc_lng = phc_lng;
+    this._label = label;
 
-    // Zoom to fit both PHC and KFMC if we have PHC coords
+    const centerLat = phc_lat || KFMC_LAT;
+    const centerLng = phc_lng || KFMC_LNG;
+
     this.map = L.map(container);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap'
@@ -386,7 +395,7 @@ Hooks.EmsMap = {
 
     const points = [[KFMC_LAT, KFMC_LNG]];
 
-    // PHC marker (green pin)
+    // Patient location marker (PHC facility)
     if (phc_lat && phc_lng) {
       const phcIcon = L.divIcon({
         html: '<div style="font-size:26px;text-align:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">🏥</div>',
@@ -396,12 +405,12 @@ Hooks.EmsMap = {
       });
       L.marker([phc_lat, phc_lng], {icon: phcIcon})
         .addTo(this.map)
-        .bindPopup(`<b>Origin:</b><br>${phc_name || 'PHC Facility'}`)
+        .bindPopup(`<b>Patient Location:</b><br>${phc_name || 'PHC Facility'}`)
         .openPopup();
       points.push([phc_lat, phc_lng]);
     }
 
-    // KFMC destination marker (red hospital)
+    // KFMC destination marker
     const kfmcIcon = L.divIcon({
       html: '<div style="font-size:26px;text-align:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4))">❤️</div>',
       iconSize: [34, 34],
@@ -412,31 +421,23 @@ Hooks.EmsMap = {
       .addTo(this.map)
       .bindPopup('<b>Destination:</b><br>King Fahad Medical City<br>Cardiac Cath Lab');
 
-    // Draw dashed route line between PHC and KFMC
+    // Dashed line PHC → KFMC (second leg of the journey)
     if (phc_lat && phc_lng) {
       L.polyline([[phc_lat, phc_lng], [KFMC_LAT, KFMC_LNG]], {
         color: '#3b82f6',
         weight: 2,
         dashArray: '6 6',
-        opacity: 0.7
+        opacity: 0.6
       }).addTo(this.map);
     }
 
-    // Live EMS ambulance marker
+    // Place ambulance at provided coords (if any) then fit
     if (lat && lng) {
-      const ambulanceIcon = L.divIcon({
-        html: '<div style="font-size:28px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">🚑</div>',
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-        className: ''
-      });
-      this.ambulanceMarker = L.marker([lat, lng], {icon: ambulanceIcon})
-        .addTo(this.map)
-        .bindPopup(label || 'EMS Ambulance');
+      this._placeAmbulance(lat, lng);
+      if (phc_lat && phc_lng) this._drawEmsRoute(lat, lng, phc_lat, phc_lng);
       points.push([lat, lng]);
     }
 
-    // Fit map to show all markers
     if (points.length > 1) {
       this.map.fitBounds(L.latLngBounds(points), {padding: [40, 40]});
     } else {
@@ -444,6 +445,50 @@ Hooks.EmsMap = {
     }
 
     setTimeout(() => this.map.invalidateSize(), 200);
+
+    // Get EMS device location immediately to draw the route to the patient
+    if (!lat && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const emsLat = pos.coords.latitude;
+          const emsLng = pos.coords.longitude;
+          this._placeAmbulance(emsLat, emsLng);
+          if (phc_lat && phc_lng) this._drawEmsRoute(emsLat, emsLng, phc_lat, phc_lng);
+          const allPoints = [[KFMC_LAT, KFMC_LNG], [emsLat, emsLng]];
+          if (phc_lat && phc_lng) allPoints.push([phc_lat, phc_lng]);
+          this.map.fitBounds(L.latLngBounds(allPoints), {padding: [40, 40]});
+        },
+        (err) => console.warn("GPS on dispatch:", err.message),
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  },
+
+  _placeAmbulance(lat, lng) {
+    if (this.ambulanceMarker) {
+      this.ambulanceMarker.setLatLng([lat, lng]);
+    } else {
+      const icon = L.divIcon({
+        html: '<div style="font-size:28px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))">🚑</div>',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        className: ''
+      });
+      this.ambulanceMarker = L.marker([lat, lng], {icon})
+        .addTo(this.map)
+        .bindPopup(this._label || 'EMS Ambulance');
+    }
+  },
+
+  // Solid orange line from ambulance to patient (first leg — pick up)
+  _drawEmsRoute(emsLat, emsLng, destLat, destLng) {
+    if (this.emsRouteLine) this.emsRouteLine.remove();
+    this.emsRouteLine = L.polyline([[emsLat, emsLng], [destLat, destLng]], {
+      color: '#f97316',
+      weight: 4,
+      dashArray: '10 5',
+      opacity: 0.9
+    }).addTo(this.map);
   },
 
   destroyed() {
