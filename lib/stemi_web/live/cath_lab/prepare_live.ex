@@ -230,27 +230,37 @@ defmodule StemiWeb.CathLab.PrepareLive do
     <div class="user-list" id="cath-list">
       <div
         :for={c <- @cases}
-        class="user-card"
-        style={"cursor: pointer; border-left: 4px solid #{cath_status_color(c.cath_lab_status)}"}
+        class="case-card"
+        style={"--card-accent: #{cath_status_color(c.cath_lab_status)}"}
         phx-click="view_case"
         phx-value-id={c.id}
         id={"cath-#{c.id}"}
       >
-        <div class="user-card__avatar" style={"background: #{cath_status_color(c.cath_lab_status)}"}>
-          🫀
+        <div class="case-card__header">
+          <span class="case-card__id">{Case.display_id(c)}</span>
+          <span class="case-card__time">{time_ago(c.inserted_at)}</span>
         </div>
-        <div class="user-card__info">
-          <div class="user-card__name">{Case.display_id(c)} — Patient: {c.patient_id}</div>
-          <div class="user-card__meta">
-            <span class="badge" style={"background: #{cath_status_color(c.cath_lab_status)}22; color: #{cath_status_color(c.cath_lab_status)};"}>
-              {cath_status_label(c.cath_lab_status)}
-            </span>
-            <span :if={c.phc_hospital} class="badge badge--phc">From: {c.phc_hospital.name}</span>
-            <span style="color: var(--text-muted); font-size: 12px;">{time_ago(c.inserted_at)}</span>
+        <div class="case-card__route">
+          <div class="case-card__origin">
+            <div class="case-card__code">PHC</div>
+            <div class="case-card__sublabel">{if c.phc_hospital, do: c.phc_hospital.name, else: "Facility"}</div>
+          </div>
+          <div class="case-card__arrow">
+            <div class="case-card__arrow-line"></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <div class="case-card__arrow-line"></div>
+          </div>
+          <div class="case-card__dest">
+            <div class="case-card__code">KFMC</div>
+            <div class="case-card__sublabel">Cath Lab</div>
           </div>
         </div>
-        <div style={"color: #{cath_status_color(c.cath_lab_status)}; font-size: 12px; font-weight: 600;"}>
-          {cath_status_label(c.cath_lab_status)}
+        <div class="case-card__footer">
+          <span class="badge" style={"background: #{cath_status_color(c.cath_lab_status)}22; color: #{cath_status_color(c.cath_lab_status)};"}>
+            {cath_status_label(c.cath_lab_status)}
+          </span>
+          <span :if={c.patient_id && c.patient_id != ""} style="color: var(--text-secondary);">👤 {c.patient_id}</span>
+          <span style={"color: #{cath_status_color(c.cath_lab_status)}; font-weight: 600; margin-left: auto;"}>{cath_status_label(c.cath_lab_status)}</span>
         </div>
       </div>
 

@@ -60,19 +60,23 @@ defmodule StemiWeb.Phc.CasesLive do
 
   @impl true
   def handle_event("new_case", _params, socket) do
-    changeset = Cases.change_case(%Case{}, %{})
-
     socket =
       socket
+      |> cancel_stale_uploads()
       |> assign(:show_form, true)
-      |> assign(:changeset, changeset)
+      |> assign(:changeset, Cases.change_case(%Case{}, %{}))
 
     {:noreply, socket}
   end
 
   @impl true
   def handle_event("close_form", _params, socket) do
-    {:noreply, assign(socket, show_form: false, changeset: nil)}
+    socket =
+      socket
+      |> cancel_stale_uploads()
+      |> assign(show_form: false, changeset: nil)
+
+    {:noreply, socket}
   end
 
   @impl true
@@ -145,12 +149,11 @@ defmodule StemiWeb.Phc.CasesLive do
 
     case Cases.create_case(attrs) do
       {:ok, _case} ->
-        cases = Cases.list_cases_for_phc(user.id)
-
         socket =
           socket
+          |> cancel_stale_uploads()
           |> put_flash(:info, "STEMI case submitted successfully!")
-          |> assign(:cases, cases)
+          |> assign(:cases, Cases.list_cases_for_phc(user.id))
           |> assign(:show_form, false)
           |> assign(:changeset, nil)
 
@@ -162,6 +165,23 @@ defmodule StemiWeb.Phc.CasesLive do
   end
 
   # --- Helpers ---
+
+  defp upload_error_label(:too_large), do: "File too large (max 8MB)"
+  defp upload_error_label(:too_many_files), do: "Too many files"
+  defp upload_error_label(:not_accepted), do: "File type not accepted"
+  defp upload_error_label(_), do: "Upload failed — please try again"
+
+  defp cancel_stale_uploads(socket) do
+    socket
+    |> cancel_entries(:ecg_photo)
+    |> cancel_entries(:id_photo)
+  end
+
+  defp cancel_entries(socket, upload_name) do
+    Enum.reduce(socket.assigns.uploads[upload_name].entries, socket, fn entry, acc ->
+      cancel_upload(acc, upload_name, entry.ref)
+    end)
+  end
 
   defp status_color("pending_review"), do: "#f59e0b"
   defp status_color("approved"), do: "#22c55e"
@@ -212,30 +232,38 @@ defmodule StemiWeb.Phc.CasesLive do
     <div class="user-list" id="case-list">
       <div
         :for={c <- @cases}
-        class="user-card"
+        class="case-card"
         id={"case-#{c.id}"}
-        style="cursor: pointer;"
+        style={"--card-accent: #{status_color(c.status)}"}
         phx-click="view_case"
         phx-value-id={c.id}
       >
-        <div class="user-card__avatar" style={"background: #{status_color(c.status)}"}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-          </svg>
+        <div class="case-card__header">
+          <span class="case-card__id">{Case.display_id(c)}</span>
+          <span class="case-card__time case-elapsed" data-elapsed-since={DateTime.to_iso8601(c.inserted_at)}>{time_ago(c.inserted_at)}</span>
         </div>
-        <div class="user-card__info">
-          <div class="user-card__name">
-            {Case.display_id(c)}<span :if={c.patient_id && c.patient_id != ""}> — {c.patient_id}</span>
+        <div class="case-card__route">
+          <div class="case-card__origin">
+            <div class="case-card__code">PHC</div>
+            <div class="case-card__sublabel">{if c.patient_id && c.patient_id != "", do: c.patient_id, else: "New Case"}</div>
           </div>
-          <div class="user-card__meta">
-            <span class="badge" style={"background: #{status_color(c.status)}22; color: #{status_color(c.status)}"}>
-              {status_label(c.status)}
-            </span>
-            <span :if={c.ecg_photo_url && c.ecg_photo_url != "no_photo"} style="color: var(--success); font-size: 12px;">📷 ECG</span>
-            <span :if={c.id_photo_url} style="color: var(--info); font-size: 12px;">🪪 ID</span>
-            <span :if={Cases.count_comments(c.id) > 0} style="color: var(--warning); font-size: 12px;">💬 {Cases.count_comments(c.id)}</span>
-            <span class="case-elapsed" data-elapsed-since={DateTime.to_iso8601(c.inserted_at)}>{time_ago(c.inserted_at)}</span>
+          <div class="case-card__arrow">
+            <div class="case-card__arrow-line"></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <div class="case-card__arrow-line"></div>
           </div>
+          <div class="case-card__dest">
+            <div class="case-card__code">KFMC</div>
+            <div class="case-card__sublabel">Cath Lab</div>
+          </div>
+        </div>
+        <div class="case-card__footer">
+          <span class="badge" style={"background: #{status_color(c.status)}22; color: #{status_color(c.status)}"}>
+            {status_label(c.status)}
+          </span>
+          <span :if={c.ecg_photo_url && c.ecg_photo_url != "no_photo"} style="color: var(--success);">📷 ECG</span>
+          <span :if={c.id_photo_url} style="color: var(--info);">🪪 ID</span>
+          <span :if={Cases.count_comments(c.id) > 0} style="color: var(--warning);">💬 {Cases.count_comments(c.id)}</span>
         </div>
       </div>
 
@@ -299,8 +327,11 @@ defmodule StemiWeb.Phc.CasesLive do
               <div :for={entry <- @uploads.ecg_photo.entries} class="photo-preview">
                 <.live_img_preview entry={entry} class="photo-preview-img" />
                 <button type="button" class="photo-remove-btn" phx-click="cancel_upload" phx-value-ref={entry.ref} phx-value-upload="ecg_photo">✕</button>
-                <div :if={entry.progress > 0 && entry.progress < 100} class="photo-progress">
-                  <div class="photo-progress-bar" style={"width: #{entry.progress}%"}></div>
+                <div :if={entry.progress < 100} class="photo-progress">
+                  <div class="photo-progress-bar" style={"width: #{max(entry.progress, 5)}%"}></div>
+                  <span style="font-size: 11px; color: #94a3b8; margin-top: 2px; display: block; text-align: center;">
+                    {if entry.progress == 0, do: "Compressing…", else: "Uploading #{entry.progress}%"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -344,6 +375,18 @@ defmodule StemiWeb.Phc.CasesLive do
               placeholder="Anything the cardiologist should know — symptoms, meds, time of onset… Others can reply to this on the case."
             >{f[:initial_comment].value}</textarea>
             <div :for={msg <- f[:initial_comment].errors |> Enum.map(&elem(&1, 0))} class="form-error">{msg}</div>
+          </div>
+
+          <div :if={Enum.any?(@uploads.ecg_photo.entries ++ @uploads.id_photo.entries, &(&1.progress < 100 && !&1.cancelled?))} style="background: #1c2330; border: 1px solid #2a3342; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #94a3b8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Uploading photo… please wait before submitting.
+          </div>
+
+          <div :for={err <- upload_errors(@uploads.ecg_photo)} style="color: #ef4444; font-size: 13px; margin-bottom: 8px;">
+            ECG photo error: {upload_error_label(err)}
+          </div>
+          <div :for={err <- upload_errors(@uploads.id_photo)} style="color: #ef4444; font-size: 13px; margin-bottom: 8px;">
+            ID photo error: {upload_error_label(err)}
           </div>
 
           <div class="flex gap-2 mt-4">

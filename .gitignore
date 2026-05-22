@@ -8,4 +8,9 @@ esbuild
 /tmp
 .env
 stemi-keys.txt
-priv/static/assets/
+# Ignore generated/digested assets but keep CSS source files
+priv/static/assets/js/
+priv/static/assets/css/app-*.css
+priv/static/assets/default-*.css
+priv/static/assets/*.gz
+.secrets

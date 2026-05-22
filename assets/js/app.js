@@ -198,24 +198,30 @@ const Hooks = {
       input.setAttribute('accept', 'image/*');
       input.setAttribute('capture', 'environment');
 
-      // Intercept file selection and compress before LiveView upload
+      // Intercept file selection, compress, then re-fire change so LiveView sees the compressed file
       input.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file || !file.type.startsWith('image/')) return;
 
-        // Compress the image
+        // Block LiveView from seeing the original (uncompressed) file
+        e.stopImmediatePropagation();
+
+        // Show a compressing indicator on the upload area
+        const area = this.el.querySelector('.photo-upload-area, .photo-upload-placeholder');
+        if (area) area.style.opacity = '0.5';
+
         this.compressImage(file, (compressedFile) => {
-          // Create a new FileList with the compressed file
+          // Put the compressed file back on the input
           const dt = new DataTransfer();
           dt.items.add(compressedFile);
           input.files = dt.files;
 
-          // Dispatch input event so LiveView picks up the new file
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-        });
+          // Restore opacity
+          if (area) area.style.opacity = '1';
 
-        // Prevent the original event from propagating
-        e.stopImmediatePropagation();
+          // Fire a proper 'change' event so LiveView queues the upload
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
       }, { capture: true });
     },
 

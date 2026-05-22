@@ -223,34 +223,41 @@ defmodule StemiWeb.Elig.CasesLive do
     <div class="user-list" id="elig-list">
       <div
         :for={c <- @cases}
-        class="user-card"
-        style="cursor: pointer;"
+        class="case-card"
+        style={"--card-accent: #{if c.mrn_number && c.mrn_number != "", do: "#22c55e", else: "#f59e0b"}"}
         phx-click="view_case"
         phx-value-id={c.id}
         id={"elig-#{c.id}"}
       >
-        <div class="user-card__avatar" style={"background: #{if c.mrn_number && c.mrn_number != "", do: "#22c55e", else: "#f59e0b"}"}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="5" width="20" height="14" rx="2"/>
-            <circle cx="8" cy="12" r="2"/>
-            <path d="M14 10h4"/>
-            <path d="M14 14h4"/>
-          </svg>
+        <div class="case-card__header">
+          <span class="case-card__id">{Case.display_id(c)}</span>
+          <span class="case-card__time">{time_ago(c.inserted_at)}</span>
         </div>
-        <div class="user-card__info">
-          <div class="user-card__name">{Case.display_id(c)} — {c.patient_id}</div>
-          <div class="user-card__meta">
-            <span :if={c.mrn_number && c.mrn_number != ""} class="badge" style="background: #22c55e22; color: #22c55e;">
-              MRN: {c.mrn_number}
-            </span>
-            <span :if={!c.mrn_number || c.mrn_number == ""} class="badge" style="background: #f59e0b22; color: #f59e0b;">
-              Needs MRN
-            </span>
-            <span style="color: var(--text-muted); font-size: 12px;">{time_ago(c.inserted_at)}</span>
+        <div class="case-card__route">
+          <div class="case-card__origin">
+            <div class="case-card__code">PHC</div>
+            <div class="case-card__sublabel">{if c.patient_id && c.patient_id != "", do: c.patient_id, else: "Patient"}</div>
+          </div>
+          <div class="case-card__arrow">
+            <div class="case-card__arrow-line"></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <div class="case-card__arrow-line"></div>
+          </div>
+          <div class="case-card__dest">
+            <div class="case-card__code">KFMC</div>
+            <div class="case-card__sublabel">Eligibility</div>
           </div>
         </div>
-        <div :if={!c.mrn_number || c.mrn_number == ""} style="color: var(--warning); font-size: 12px; font-weight: 600;">ASSIGN →</div>
-        <div :if={c.mrn_number && c.mrn_number != ""} style="color: var(--success); font-size: 12px; font-weight: 600;">✓ DONE</div>
+        <div class="case-card__footer">
+          <span :if={c.mrn_number && c.mrn_number != ""} class="badge" style="background: #22c55e22; color: #22c55e;">
+            MRN: {c.mrn_number}
+          </span>
+          <span :if={!c.mrn_number || c.mrn_number == ""} class="badge" style="background: #f59e0b22; color: #f59e0b;">
+            Needs MRN
+          </span>
+          <span :if={!c.mrn_number || c.mrn_number == ""} style="color: var(--warning); font-weight: 600; margin-left: auto;">ASSIGN →</span>
+          <span :if={c.mrn_number && c.mrn_number != ""} style="color: var(--success); font-weight: 600; margin-left: auto;">✓ DONE</span>
+        </div>
       </div>
 
       <div :if={@cases == []} class="empty-state">

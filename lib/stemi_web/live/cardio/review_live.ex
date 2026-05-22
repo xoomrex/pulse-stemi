@@ -173,32 +173,41 @@ defmodule StemiWeb.Cardio.ReviewLive do
     <div class="user-list" id="review-list">
       <div
         :for={c <- @cases}
-        class={"user-card #{if c.cardiology_decision == nil, do: "cardio-pending", else: ""}"}
-        style={"cursor: pointer; border-left: 4px solid #{status_color(c.status)};"}
+        class="case-card"
+        style={"--card-accent: #{status_color(c.status)}"}
         phx-click="view_case"
         phx-value-id={c.id}
         id={"review-#{c.id}"}
       >
-        <div class="user-card__avatar" style={"background: #{status_color(c.status)}"}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-          </svg>
+        <div class="case-card__header">
+          <span class="case-card__id">{Case.display_id(c)}</span>
+          <span class="case-card__time">{time_ago(c.inserted_at)}</span>
         </div>
-        <div class="user-card__info">
-          <div class="user-card__name">{Case.display_id(c)} — {c.patient_id}</div>
-          <div class="user-card__meta">
-            <span class="badge" style={"background: #{status_color(c.status)}22; color: #{status_color(c.status)}"}>
-              {status_label(c.status)}
-            </span>
-            <span class="badge badge--phc">From: {c.phc_user.full_name}</span>
-            <span :if={c.ecg_photo_url && c.ecg_photo_url != "no_photo"} style="color: var(--success); font-size: 12px;">📷 ECG</span>
-            <span style="color: var(--text-muted); font-size: 12px;">{time_ago(c.inserted_at)}</span>
+        <div class="case-card__route">
+          <div class="case-card__origin">
+            <div class="case-card__code">PHC</div>
+            <div class="case-card__sublabel">{c.phc_user.full_name}</div>
+          </div>
+          <div class="case-card__arrow">
+            <div class="case-card__arrow-line"></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <div class="case-card__arrow-line"></div>
+          </div>
+          <div class="case-card__dest">
+            <div class="case-card__code">KFMC</div>
+            <div class="case-card__sublabel">Cardiology</div>
           </div>
         </div>
-        <div :if={c.status == "er_approved" && c.cardiology_decision == nil} style="color: var(--warning); font-size: 12px; font-weight: 600;">REVIEW →</div>
-        <div :if={c.status == "approved" || c.cardiology_decision == "approved"} style="color: #22c55e; font-size: 12px; font-weight: 600;">✓ APPROVED</div>
-        <div :if={c.status == "rejected" || c.cardiology_decision == "rejected"} style="color: #ef4444; font-size: 12px; font-weight: 600;">✕ REJECTED</div>
-        <div :if={c.status == "dispatched"} style="color: #3b82f6; font-size: 12px; font-weight: 600;">🚑 DISPATCHED</div>
+        <div class="case-card__footer">
+          <span class="badge" style={"background: #{status_color(c.status)}22; color: #{status_color(c.status)}"}>
+            {status_label(c.status)}
+          </span>
+          <span :if={c.ecg_photo_url && c.ecg_photo_url != "no_photo"} style="color: var(--success);">📷 ECG</span>
+          <span :if={c.status == "er_approved" && c.cardiology_decision == nil} style="color: var(--warning); font-weight: 600; margin-left: auto;">REVIEW →</span>
+          <span :if={c.status == "approved" || c.cardiology_decision == "approved"} style="color: #22c55e; font-weight: 600; margin-left: auto;">✓ APPROVED</span>
+          <span :if={c.status == "rejected" || c.cardiology_decision == "rejected"} style="color: #ef4444; font-weight: 600; margin-left: auto;">✕ REJECTED</span>
+          <span :if={c.status == "dispatched"} style="color: #3b82f6; font-weight: 600; margin-left: auto;">🚑 DISPATCHED</span>
+        </div>
       </div>
 
       <div :if={@cases == []} class="empty-state">
